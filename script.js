@@ -906,9 +906,10 @@ async function insertOCRTransaction() {
   await pushToSupabase(tx);
 
   await fetch(
-  'https://script.google.com/macros/s/AKfycbw-dRNNXXpYqRSmhZAFc2eCaNbeL-p_1emfsznTrTxwVajRLwAB2F2_MnS--nf2X8Ku/exec',
+  'https://script.google.com/macros/s/AKfycbylgk4eBA02OYy1GdkQEioz_Pv8V7TOwUrSfwRCFCR5w5-lMpzNxPhAiVczsW0Rik5K/exec',
   {
     method: 'POST',
+    mode: 'no-cors',
     headers: {
       'Content-Type': 'application/json'
     },
