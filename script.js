@@ -14,6 +14,7 @@ let supabaseClient = null;
 let currentUser = null;
 let isGuest = false;
 let charts = {};
+window.currentReceiptFile = null;
 
 // ===== SUPABASE CONFIG =====
 let SUPABASE_URL = localStorage.getItem('ft_supabase_url') || '';
@@ -190,14 +191,15 @@ async function pushToSupabase(tx) {
   if (!supabaseClient || !currentUser) return;
   try {
     const { error } = await 
-    supabaseClient.from('transactions').upsert({
-    user_id: currentUser.id,
-    type: tx.type,
-    amount: tx.amount,
-    description: tx.description,
-    category: tx.category,
-    date: tx.date
-  });
+supabaseClient.from('transactions').upsert({
+  user_id: currentUser.id,
+  type: tx.type,
+  amount: tx.amount,
+  description: tx.description,
+  category: tx.category,
+  date: tx.date,
+  receipt_url: tx.receipt_url
+});
     if (error) throw error;
   } catch(e) {
     console.warn('Push failed:', e);
@@ -682,6 +684,9 @@ function processReceipt(event) {
 }
 
 async function processReceiptFile(file) {
+
+  window.currentReceiptFile = file;
+
   const progress = document.getElementById('ocrProgress');
   const preview = document.getElementById('ocrPreview');
   const bar = document.getElementById('progressBar');
@@ -690,50 +695,88 @@ async function processReceiptFile(file) {
 
   // Show preview image
   const reader = new FileReader();
-  reader.onload = e => { document.getElementById('previewImg').src = e.target.result; };
+
+  reader.onload = e => {
+    document.getElementById('previewImg').src =
+      e.target.result;
+  };
+
   reader.readAsDataURL(file);
 
   progress.classList.add('visible');
   preview.classList.remove('visible');
+
   bar.style.width = '0%';
-  label.textContent = 'Memproses OCR dengan Tesseract.js...';
+
+  label.textContent =
+    'Memproses OCR dengan Tesseract.js...';
+
   status.textContent = 'Menginisialisasi...';
 
   try {
+
     const { createWorker } = Tesseract;
+
     const worker = await createWorker('ind+eng', 1, {
       logger: m => {
+
         if (m.status === 'recognizing text') {
-          bar.style.width = (m.progress * 100).toFixed(0) + '%';
-          status.textContent = `Membaca teks: ${(m.progress * 100).toFixed(0)}%`;
+
+          bar.style.width =
+            (m.progress * 100).toFixed(0) + '%';
+
+          status.textContent =
+            `Membaca teks: ${(m.progress * 100).toFixed(0)}%`;
+
         } else {
           status.textContent = m.status;
         }
       }
     });
 
-    const { data: { text } } = await worker.recognize(file);
+    const {
+      data: { text }
+    } = await worker.recognize(file);
+
     await worker.terminate();
 
     bar.style.width = '100%';
+
     status.textContent = 'OCR selesai!';
 
-    // Parse OCR result
     const amount = extractAmount(text);
     const date = extractDate(text);
 
     document.getElementById('ocrRaw').value = text;
-    document.getElementById('ocrAmount').value = amount || '';
-    document.getElementById('ocrDate').value = date || new Date().toISOString().split('T')[0];
-    document.getElementById('ocrDesc').value = 'Pengeluaran dari struk';
+
+    document.getElementById('ocrAmount').value =
+      amount || '';
+
+    document.getElementById('ocrDate').value =
+      date || new Date().toISOString().split('T')[0];
+
+    document.getElementById('ocrDesc').value =
+      'Pengeluaran dari struk';
 
     progress.classList.remove('visible');
+
     preview.classList.add('visible');
-    showToast('OCR berhasil! Periksa dan edit data jika perlu.', 'success');
+
+    showToast(
+      'OCR berhasil! Periksa dan edit data jika perlu.',
+      'success'
+    );
+
   } catch(e) {
+
     status.textContent = 'Error: ' + e.message;
+
     bar.style.width = '0%';
-    showToast('OCR gagal: ' + e.message, 'error');
+
+    showToast(
+      'OCR gagal: ' + e.message,
+      'error'
+    );
   }
 }
 
@@ -776,22 +819,108 @@ function extractDate(text) {
 }
 
 async function insertOCRTransaction() {
-  const amount = parseFloat(document.getElementById('ocrAmount').value);
-  const date = document.getElementById('ocrDate').value;
-  const desc = document.getElementById('ocrDesc').value.trim();
-  if (!amount || amount <= 0) { showToast('Nominal tidak valid', 'error'); return; }
-  if (!date) { showToast('Tanggal harus diisi', 'error'); return; }
-  const tx = { id: generateId(), type: 'expense', amount, description: desc || 'Pengeluaran struk', category: 'Lainnya', date };
+
+  const amount = parseFloat(
+    document.getElementById('ocrAmount').value
+  );
+
+  const date =
+    document.getElementById('ocrDate').value;
+
+  const desc =
+    document.getElementById('ocrDesc').value.trim();
+
+  if (!amount || amount <= 0) {
+    showToast('Nominal tidak valid', 'error');
+    return;
+  }
+
+  if (!date) {
+    showToast('Tanggal harus diisi', 'error');
+    return;
+  }
+
+  // ===== UPLOAD RECEIPT =====
+
+  let receiptUrl = null;
+
+  if (
+    window.currentReceiptFile &&
+    supabaseClient
+  ) {
+
+    try {
+
+      const fileExt =
+        window.currentReceiptFile.name
+          .split('.')
+          .pop();
+
+      const fileName =
+        `${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } =
+        await supabaseClient.storage
+          .from('receipts')
+          .upload(
+            fileName,
+            window.currentReceiptFile
+          );
+
+      if (uploadError) {
+
+        console.error(uploadError);
+
+      } else {
+
+        const { data } =
+          supabaseClient.storage
+            .from('receipts')
+            .getPublicUrl(fileName);
+
+        receiptUrl = data.publicUrl;
+      }
+
+    } catch(err) {
+      console.error(err);
+    }
+  }
+
+  // ===== CREATE TX =====
+
+  const tx = {
+    id: generateId(),
+    type: 'expense',
+    amount,
+    description:
+      desc || 'Pengeluaran struk',
+    category: 'Lainnya',
+    date,
+    receipt_url: receiptUrl
+  };
+
   transactions.unshift(tx);
+
   saveLocalData();
+
   await pushToSupabase(tx);
+
   renderAll();
-  document.getElementById('ocrPreview').classList.remove('visible');
+
+  document.getElementById('ocrPreview')
+    .classList.remove('visible');
+
   document.getElementById('receiptFile').value = '';
-  showToast('Transaksi dari struk berhasil ditambahkan!', 'success');
+
+  window.currentReceiptFile = null;
+
+  showToast(
+    'Transaksi + struk berhasil disimpan!',
+    'success'
+  );
+
   navigate('transactions');
 }
-
 // ===== EXPORT CSV =====
 function exportCSV() {
   const txs = getFilteredTx();
