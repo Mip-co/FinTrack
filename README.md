@@ -2,9 +2,10 @@
 
 > Aplikasi pembukuan keuangan beasiswa — catat pengeluaran, scan struk, dan generate laporan LPJ otomatis.
 
-[![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-dutrack.vercel.app-7C6AF5?style=for-the-badge)](https://dutrack.vercel.app)
-[![Vercel](https://img.shields.io/badge/Deployed_on-Vercel-000000?style=for-the-badge&logo=vercel)](https://vercel.com)
-[![Supabase](https://img.shields.io/badge/Backend-Supabase-3ECF8E?style=for-the-badge&logo=supabase)](https://supabase.com)
+**Website:**
+```
+https://mip-co.github.io/FinTrack/
+```
 
 ---
 
@@ -195,21 +196,3 @@ Data tersimpan di `localStorage` — tidak sinkron ke cloud, bisa hilang jika ca
 - `script.js` harus di-load **setelah** semua library (xlsx, jsPDF, html2canvas) di akhir `</body>` — bukan di `<head>`
 - Gunakan **Chrome** untuk hasil terbaik; Edge/Firefox dengan Tracking Prevention aktif bisa mengganggu localStorage dan Supabase client
 - Warning `Multiple GoTrueClient instances` di console adalah non-fatal, tidak mempengaruhi fungsi app
-- Project Supabase **otomatis pause** setelah 7 hari tidak ada aktivitas — resume manual lewat dashboard
-
----
-
-## 📦 Struktur File
-
-```
-DuTrack/
-├── index.html          # App utama (single-file)
-├── script.js           # Semua logika & fungsi
-├── style.css           # Styling & tema
-├── icon.png            # App icon
-└── README.md           # Dokumentasi ini
-```
-
----
-
-*Made with ☕ for beasiswa reporting · Deployed on [Vercel](https://vercel.com) · Backend by [Supabase](https://supabase.com)*
